@@ -1,0 +1,30 @@
+# NVR 服务配置
+# 部署在 NAS 上时，推荐用 docker-compose.yml + 环境变量，本文件主要用于本地开发调试
+
+server:
+  host: 0.0.0.0
+  port: 8080
+
+# go2rtc 配置
+go2rtc:
+  # 外部模式（推荐）：连接已部署的 go2rtc，NVR 通过 HTTP API 管理流
+  # 改成 false 则 NVR 自己拉起 go2rtc 子进程（单机部署场景）
+  external: true
+  api_base: http://127.0.0.1:1984      # 外部模式：go2rtc HTTP API 地址
+  rtsp_base: rtsp://127.0.0.1:8554     # 外部模式：go2rtc RTSP 地址
+  # 以下仅 external=false 时生效
+  binary_path: go2rtc
+  config_path: config/go2rtc.yaml
+  api_port: 1984
+  rtsp_port: 8554
+
+# 存储
+storage:
+  data_dir: data                # 设备元数据目录（devices.json）
+  record_dir: recordings        # 录像目录
+
+# 录像策略
+record:
+  segment_duration: 30          # 单段录像时长（分钟）
+  keep_days: 7                  # 录像保留天数
+  format: mp4                   # 封装格式：mp4 / mkv

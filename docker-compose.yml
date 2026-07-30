@@ -1,0 +1,41 @@
+# NVR 容器编排
+# 适用场景：NAS 上已经独立部署了 go2rtc，本容器只跑 NVR 业务逻辑
+#
+# 使用前修改 environment 里的 GO2RTC_API_BASE / GO2RTC_RTSP_BASE 指向你 NAS 上的 go2rtc 地址
+# 然后执行：docker compose up -d --build
+
+services:
+  nvr:
+    build: .
+    image: nvr:latest
+    container_name: nvr
+    restart: unless-stopped
+    ports:
+      - "8080:8080"                       # NVR Web UI 与 API
+    environment:
+      # 连接到 NAS 上已部署的 go2rtc
+      # 把 192.168.1.10 改成你 NAS 的实际 IP
+      NVR_GO2RTC_EXTERNAL: "true"
+      NVR_GO2RTC_API_BASE: "http://192.168.1.10:1984"
+      NVR_GO2RTC_RTSP_BASE: "rtsp://192.168.1.10:8554"
+
+      # 录像策略（可选）
+      NVR_RECORD_SEGMENT_DURATION: "30"
+      NVR_RECORD_KEEP_DAYS: "7"
+      NVR_RECORD_FORMAT: "mp4"
+
+      # 时区
+      TZ: "Asia/Shanghai"
+    volumes:
+      # 设备元数据持久化（devices.json）
+      - ./data:/app/data
+      # 录像文件持久化
+      - ./recordings:/app/recordings
+      # 如需用配置文件而非环境变量，挂载自己的 config.yaml：
+      # - ./config.yaml:/app/config.yaml:ro
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/health"]
+      interval: 30s
+      timeout: 3s
+      start_period: 30s
+      retries: 3

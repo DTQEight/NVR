@@ -1,0 +1,27 @@
+# 二进制与构建产物
+/nvr
+/bin/
+/dist/
+*.exe
+*.exe~
+
+# go2rtc 二进制
+/go2rtc
+/go2rtc.exe
+
+# 配置与运行时数据
+/config/go2rtc.yaml
+/recordings/
+/data/
+*.db
+*.db-journal
+*.log
+
+# IDE
+.idea/
+.vscode/
+*.swp
+.DS_Store
+
+# Go
+/vendor/
