@@ -72,7 +72,4 @@ ENV NVR_SERVER_PORT=8080 \
 # 对外暴露：NVR Web(8080) + go2rtc WebUI(1984, 可选) + go2rtc RTSP(8554, 可选)
 EXPOSE 8080 1984 8554
 
-HEALTHCHECK --interval=30s --timeout=3s --start-period=30s --retries=3 \
-    CMD wget -qO- http://127.0.0.1:8080/health || exit 1
-
 ENTRYPOINT ["/app/entrypoint.sh"]
