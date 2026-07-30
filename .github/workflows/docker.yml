@@ -20,6 +20,7 @@ on:
 
 env:
   IMAGE_NAME: ${{ github.repository }}
+  BUILDKIT_PROGRESS: plain
 
 jobs:
   # 预检：快速暴露编译错误，失败立即终止，不浪费时间到 docker 构建上

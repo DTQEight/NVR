@@ -17,8 +17,7 @@ COPY go.mod* ./
 RUN go mod tidy && go mod download
 
 COPY . .
-RUN echo "编译 NVR (GOARCH=${GOARCH})..." && \
-    go build -ldflags="-s -w" -o /out/nvr ./cmd/nvr 2>&1 || { echo "=== go build 失败，上方为完整错误 ==="; exit 1; }
+RUN go build -ldflags="-s -w" -o /out/nvr ./cmd/nvr
 
 # ---------- 阶段 2：下载 go2rtc 二进制 ----------
 FROM alpine:3.19 AS go2rtc
