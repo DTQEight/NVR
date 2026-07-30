@@ -13,7 +13,8 @@ ENV GOPROXY=https://goproxy.cn,direct \
 WORKDIR /build
 
 # 先复制依赖文件，利用 Docker 缓存
-COPY go.mod go.sum ./
+# 用通配符兼容 go.sum 不存在的情况（go mod download 会自动生成）
+COPY go.mod* ./
 RUN go mod download
 
 # 复制源码并编译
