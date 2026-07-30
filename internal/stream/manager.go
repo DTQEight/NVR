@@ -314,8 +314,29 @@ func (m *Manager) startProcess() error {
 
 	go m.watch()
 
-	time.Sleep(500 * time.Millisecond)
+	// 等待 go2rtc HTTP API 就绪（最多 10 秒）
+	if err := m.waitForReady(10 * time.Second); err != nil {
+		m.log.Warn("go2rtc 启动后 API 未就绪（可能仍正常，继续运行）", zap.Error(err))
+	}
 	return nil
+}
+
+// waitForReady 轮询 go2rtc HTTP API 直到就绪或超时
+func (m *Manager) waitForReady(timeout time.Duration) error {
+	deadline := time.Now().Add(timeout)
+	u := fmt.Sprintf("%s/api/streams", m.apiBase())
+	client := &http.Client{Timeout: 1 * time.Second}
+	for time.Now().Before(deadline) {
+		resp, err := client.Get(u)
+		if err == nil {
+			resp.Body.Close()
+			if resp.StatusCode < 500 {
+				return nil
+			}
+		}
+		time.Sleep(200 * time.Millisecond)
+	}
+	return fmt.Errorf("等待 go2rtc 就绪超时")
 }
 
 // watch 监控 go2rtc 进程
@@ -367,24 +388,33 @@ func (m *Manager) stopProcess() error {
 }
 
 // writeConfig 进程模式：生成 go2rtc.yaml
+// 采用"合并"模式：保留现有 yaml 中的 xiaomi/log 等用户手动配置的段，
+// 只更新 api/rtsp/streams 段。这样用户在 go2rtc WebUI 登录小米账号后
+// 保存的 xiaomi 段不会被覆盖。
 func (m *Manager) writeConfig() error {
 	m.mu.RLock()
-	defer m.mu.RUnlock()
-
-	g2 := struct {
-		API     map[string]int    `yaml:"api"`
-		RTSP    map[string]int    `yaml:"rtsp"`
-		Streams map[string]string `yaml:"streams"`
-	}{
-		API:      map[string]int{"listen": m.cfg.Go2RTC.APIPort},
-		RTSP:     map[string]int{"listen": m.cfg.Go2RTC.RTSPPort},
-		Streams:  make(map[string]string),
-	}
+	streams := make(map[string]string, len(m.devices))
 	for _, d := range m.devices {
 		if d.Enabled {
-			g2.Streams[d.ID] = d.Source
+			streams[d.ID] = d.Source
 		}
 	}
+	m.mu.RUnlock()
+
+	// 读取现有配置（如有），保留未知字段
+	existing := make(map[string]interface{})
+	if data, err := os.ReadFile(m.cfg.Go2RTC.ConfigPath); err == nil {
+		_ = yaml.Unmarshal(data, existing) // 解析失败忽略，用空 map
+	}
+
+	// 更新 NVR 管理的段
+	existing["api"] = map[string]interface{}{
+		"listen": fmt.Sprintf(":%d", m.cfg.Go2RTC.APIPort),
+	}
+	existing["rtsp"] = map[string]interface{}{
+		"listen": fmt.Sprintf(":%d", m.cfg.Go2RTC.RTSPPort),
+	}
+	existing["streams"] = streams
 
 	if dir := filepath.Dir(m.cfg.Go2RTC.ConfigPath); dir != "" {
 		if err := os.MkdirAll(dir, 0755); err != nil {
@@ -395,7 +425,7 @@ func (m *Manager) writeConfig() error {
 	var buf bytes.Buffer
 	enc := yaml.NewEncoder(&buf)
 	enc.SetIndent(2)
-	if err := enc.Encode(g2); err != nil {
+	if err := enc.Encode(existing); err != nil {
 		return err
 	}
 	enc.Close()

@@ -1,41 +1,22 @@
-# NVR 容器编排
-# 用法（推荐）：
-#   1. 修改 environment 里的 GO2RTC_API_BASE / GO2RTC_RTSP_BASE 指向你 NAS 上的 go2rtc 地址
-#   2. docker compose up -d
-#
-# 镜像由 GitHub Actions 自动构建并推送到 GHCR（支持 amd64 + arm64）
-# 镜像地址：ghcr.io/dtqeight/nvr:latest
-#
-# 如果想本地构建（不拉镜像），把 image 换成 build: { context: . }
-
 services:
   nvr:
     image: ghcr.io/dtqeight/nvr:latest
     container_name: nvr
     restart: unless-stopped
     ports:
-      - "8080:8080"                       # NVR Web UI 与 API
+      - "18800:8080"        # NVR Web UI
+      - "1984:1984"          # go2rtc WebUI（可选，调试用）
+      - "8554:8554"          # go2rtc RTSP（可选，外部访问用）
     environment:
-      # 连接到 NAS 上已部署的 go2rtc
-      # 把 192.168.1.10 改成你 NAS 的实际 IP
-      NVR_GO2RTC_EXTERNAL: "true"
-      NVR_GO2RTC_API_BASE: "http://192.168.1.10:1984"
-      NVR_GO2RTC_RTSP_BASE: "rtsp://192.168.1.10:8554"
-
-      # 录像策略（可选）
+      # 录像策略
       NVR_RECORD_SEGMENT_DURATION: "30"
       NVR_RECORD_KEEP_DAYS: "7"
       NVR_RECORD_FORMAT: "mp4"
-
-      # 时区
       TZ: "Asia/Shanghai"
     volumes:
-      # 设备元数据持久化（devices.json）
       - ./data:/app/data
-      # 录像文件持久化
       - ./recordings:/app/recordings
-      # 如需用配置文件而非环境变量，挂载自己的 config.yaml：
-      # - ./config.yaml:/app/config.yaml:ro
+      - ./config:/app/config       # go2rtc 配置 + 小米登录数据持久化
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/health"]
       interval: 30s

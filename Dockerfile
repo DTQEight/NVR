@@ -1,58 +1,78 @@
-# 多阶段构建：编译 NVR（不内嵌 go2rtc，连接外部已部署的 go2rtc）
+# 多阶段构建：编译 NVR + 打包 go2rtc（单容器集成部署）
 # 用法：docker build -t nvr:latest .
-#       docker run -p 8080:8080 -v ./data:/app/data -e GO2RTC_API_BASE=http://192.168.1.10:1984 nvr:latest
+#       docker run -p 8080:8080 -v ./data:/app/data nvr:latest
 
-# ---------- 阶段 1：编译 ----------
+# ---------- 阶段 1：编译 NVR ----------
 FROM golang:1.21-alpine AS builder
 
-# GitHub Actions runner 在美国，用官方 proxy 更快；NAS 本地构建可改 goproxy.cn
 ENV GOPROXY=https://proxy.golang.org,direct \
     CGO_ENABLED=0 \
     GOOS=linux
 
 WORKDIR /build
 
-# 先复制依赖文件（利用 Docker 层缓存，代码变动不重新下依赖）
 COPY go.mod go.sum ./
 RUN go mod download
 
-# 复制源码并编译
 COPY . .
 RUN go build -ldflags="-s -w" -o /out/nvr ./cmd/nvr
 
-# ---------- 阶段 2：运行时 ----------
+# ---------- 阶段 2：下载 go2rtc 二进制 ----------
+FROM alpine:3.19 AS go2rtc
+ARG TARGETARCH
+# go2rtc releases: https://github.com/AlexxIT/go2rtc/releases
+RUN apk add --no-cache curl && \
+    case "$TARGETARCH" in \
+      amd64) GO2RTC_ARCH="amd64" ;; \
+      arm64) GO2RTC_ARCH="arm64" ;; \
+      arm)   GO2RTC_ARCH="armv7" ;; \
+      *) echo "unsupported arch: $TARGETARCH" && exit 1 ;; \
+    esac && \
+    curl -L -o /usr/local/bin/go2rtc \
+      "https://github.com/AlexxIT/go2rtc/releases/latest/download/go2rtc_linux_${GO2RTC_ARCH}" && \
+    chmod +x /usr/local/bin/go2rtc
+
+# ---------- 阶段 3：运行时 ----------
 FROM alpine:3.19
 
-# 时区与基本工具
-RUN apk add --no-cache ca-certificates tzdata && \
+# 时区 + FFmpeg（录像用）+ 基本工具
+RUN apk add --no-cache ca-certificates tzdata ffmpeg wget && \
     cp /usr/share/zoneinfo/Asia/Shanghai /etc/localtime && \
     echo "Asia/Shanghai" > /etc/timezone
 
 WORKDIR /app
 
-# 拷贝二进制与静态资源
+# 拷贝 NVR 二进制 + 静态资源
 COPY --from=builder /out/nvr /app/nvr
 COPY web /app/web
 
-# 数据目录（设备元数据、未来录像索引等）
-# 通过 volume 持久化
-RUN mkdir -p /app/data /app/recordings
-VOLUME ["/app/data", "/app/recordings"]
+# 拷贝 go2rtc 二进制
+COPY --from=go2rtc /usr/local/bin/go2rtc /usr/local/bin/go2rtc
 
-# 默认配置（可通过环境变量覆盖，无需挂载 config.yaml）
+# 启动脚本：先起 go2rtc，再起 NVR
+COPY docker/entrypoint.sh /app/entrypoint.sh
+RUN chmod +x /app/entrypoint.sh
+
+# 数据目录
+RUN mkdir -p /app/data /app/recordings /app/config
+VOLUME ["/app/data", "/app/recordings", "/app/config"]
+
+# 默认配置：集成模式（容器内 go2rtc）
 ENV NVR_SERVER_PORT=8080 \
-    NVR_GO2RTC_EXTERNAL=true \
+    NVR_GO2RTC_EXTERNAL=false \
+    NVR_GO2RTC_BINARY_PATH=/usr/local/bin/go2rtc \
+    NVR_GO2RTC_CONFIG_PATH=/app/config/go2rtc.yaml \
+    NVR_GO2RTC_API_PORT=1984 \
+    NVR_GO2RTC_RTSP_PORT=8554 \
     NVR_GO2RTC_API_BASE=http://127.0.0.1:1984 \
     NVR_GO2RTC_RTSP_BASE=rtsp://127.0.0.1:8554 \
     NVR_STORAGE_DATA_DIR=/app/data \
     NVR_STORAGE_RECORD_DIR=/app/recordings
 
-EXPOSE 8080
+# 对外暴露：NVR Web(8080) + go2rtc WebUI(1984, 可选) + go2rtc RTSP(8554, 可选)
+EXPOSE 8080 1984 8554
 
-# 健康检查（30 秒后开始，每 30 秒一次）
 HEALTHCHECK --interval=30s --timeout=3s --start-period=30s --retries=3 \
     CMD wget -qO- http://127.0.0.1:8080/health || exit 1
 
-# 不指定 config 文件，让 NVR 走"默认值 + 环境变量"模式
-ENTRYPOINT ["/app/nvr"]
-CMD ["-config", "/app/config.yaml"]
+ENTRYPOINT ["/app/entrypoint.sh"]
