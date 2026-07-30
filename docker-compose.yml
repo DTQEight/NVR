@@ -1,13 +1,16 @@
 # NVR 容器编排
-# 适用场景：NAS 上已经独立部署了 go2rtc，本容器只跑 NVR 业务逻辑
+# 用法（推荐）：
+#   1. 修改 environment 里的 GO2RTC_API_BASE / GO2RTC_RTSP_BASE 指向你 NAS 上的 go2rtc 地址
+#   2. docker compose up -d
 #
-# 使用前修改 environment 里的 GO2RTC_API_BASE / GO2RTC_RTSP_BASE 指向你 NAS 上的 go2rtc 地址
-# 然后执行：docker compose up -d --build
+# 镜像由 GitHub Actions 自动构建并推送到 GHCR（支持 amd64 + arm64）
+# 镜像地址：ghcr.io/dtqeight/nvr:latest
+#
+# 如果想本地构建（不拉镜像），把 image 换成 build: { context: . }
 
 services:
   nvr:
-    build: .
-    image: nvr:latest
+    image: ghcr.io/dtqeight/nvr:latest
     container_name: nvr
     restart: unless-stopped
     ports:
