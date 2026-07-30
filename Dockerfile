@@ -13,11 +13,13 @@ ENV GOPROXY=https://proxy.golang.org,direct \
 
 WORKDIR /build
 
+# 先复制 go.mod 利用缓存下载依赖
 COPY go.mod* ./
-RUN go mod tidy && go mod download
+RUN go mod download || true
 
+# 复制全部源码后生成 go.sum 并编译
 COPY . .
-RUN go build -ldflags="-s -w" -o /out/nvr ./cmd/nvr > /tmp/build.log 2>&1 || { echo "===== go build 错误开始 ====="; cat /tmp/build.log; echo "===== go build 错误结束 ====="; exit 1; }
+RUN go mod tidy && go build -ldflags="-s -w" -o /out/nvr ./cmd/nvr
 
 # ---------- 阶段 2：下载 go2rtc 二进制 ----------
 FROM alpine:3.19 AS go2rtc
