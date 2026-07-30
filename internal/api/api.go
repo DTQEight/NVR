@@ -3,7 +3,6 @@ package api
 
 import (
 	"net/http"
-	"time"
 
 	"nvr/internal/stream"
 
@@ -103,10 +102,4 @@ func (s *Server) deleteDevice(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"ok": true})
 }
 
-// HealthCheck 健康检查接口（供 Docker / 负载均衡使用）
-func (s *Server) HealthCheck(c *gin.Context) {
-	c.JSON(http.StatusOK, gin.H{
-		"status":    "ok",
-		"timestamp": time.Now().Unix(),
-	})
-}
+

@@ -94,8 +94,6 @@ func main() {
 		c.Redirect(http.StatusFound, "/web")
 	})
 
-	r.GET("/health", apiSrv.HealthCheck)
-
 	httpSrv := &http.Server{
 		Addr:    fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port),
 		Handler: r,
