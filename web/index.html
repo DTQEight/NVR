@@ -94,7 +94,10 @@
         .actions {
             padding: 12px 16px;
             border-top: 1px solid #2a2a2a;
+            display: flex;
+            gap: 8px;
         }
+        .actions button { flex: 1; }
         button {
             width: 100%;
             padding: 8px;
@@ -106,6 +109,70 @@
             font-size: 13px;
         }
         button:hover { background: #3a6cef; }
+        button.secondary {
+            background: #3a3a3a;
+        }
+        button.secondary:hover { background: #444; }
+        button.danger {
+            background: #c0392b;
+        }
+        button.danger:hover { background: #a93226; }
+
+        /* 添加设备弹窗 */
+        .modal-mask {
+            position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,.6);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
+        }
+        .modal-mask.show { display: flex; }
+        .modal {
+            background: #222;
+            border: 1px solid #3a3a3a;
+            border-radius: 6px;
+            padding: 20px;
+            width: 420px;
+            max-width: 90vw;
+        }
+        .modal h3 { margin-bottom: 16px; font-weight: 500; }
+        .form-group { margin-bottom: 12px; }
+        .form-group label {
+            display: block;
+            font-size: 12px;
+            color: #aaa;
+            margin-bottom: 4px;
+        }
+        .form-group input, .form-group select {
+            width: 100%;
+            padding: 8px;
+            background: #1a1a1a;
+            color: #eee;
+            border: 1px solid #3a3a3a;
+            border-radius: 4px;
+            font-size: 13px;
+            box-sizing: border-box;
+        }
+        .form-group .hint {
+            font-size: 11px;
+            color: #666;
+            margin-top: 4px;
+        }
+        .modal-actions {
+            display: flex;
+            gap: 8px;
+            margin-top: 16px;
+        }
+        .modal-actions button { flex: 1; }
+        .device-item .del-btn {
+            background: transparent;
+            color: #777;
+            padding: 2px 6px;
+            width: auto;
+            font-size: 12px;
+        }
+        .device-item .del-btn:hover { color: #ff6b6b; background: transparent; }
         .error {
             color: #ff6b6b;
             font-size: 12px;
@@ -125,7 +192,8 @@
             <h2>设备列表</h2>
             <div id="deviceList"></div>
             <div class="actions">
-                <button onclick="refreshDevices()">刷新设备</button>
+                <button onclick="refreshDevices()">刷新</button>
+                <button class="secondary" onclick="showAddModal()">+ 添加</button>
             </div>
             <div class="error" id="error"></div>
         </aside>
@@ -137,6 +205,41 @@
             <video id="video" autoplay muted playsinline style="display:none"></video>
             <div class="toolbar" id="toolbar"></div>
         </main>
+    </div>
+
+    <!-- 添加设备弹窗 -->
+    <div class="modal-mask" id="addModal" onclick="if(event.target===this)closeAddModal()">
+        <div class="modal">
+            <h3>添加摄像头</h3>
+            <div class="form-group">
+                <label>设备 ID（英文/数字，唯一）</label>
+                <input id="f_id" placeholder="如：cam1" required>
+            </div>
+            <div class="form-group">
+                <label>显示名称</label>
+                <input id="f_name" placeholder="如：客厅摄像头" required>
+            </div>
+            <div class="form-group">
+                <label>类型</label>
+                <select id="f_type">
+                    <option value="rtsp">RTSP（标准摄像头）</option>
+                    <option value="xiaomi">小米摄像头</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>源地址（go2rtc source）</label>
+                <input id="f_source" placeholder="rtsp://用户名:密码@IP:554/路径" required>
+                <div class="hint" id="source_hint">标准 RTSP 地址，如 rtsp://admin:pass@192.168.1.100:554/stream</div>
+            </div>
+            <div class="form-group">
+                <label><input type="checkbox" id="f_enabled" checked style="width:auto;margin-right:6px">立即启用</label>
+            </div>
+            <div class="modal-actions">
+                <button class="secondary" onclick="closeAddModal()">取消</button>
+                <button onclick="submitAddDevice()">添加</button>
+            </div>
+            <div class="error" id="addError" style="margin-top:12px"></div>
+        </div>
     </div>
 
 <script>
@@ -165,7 +268,7 @@ async function refreshDevices() {
 function renderDevices(devices) {
     const list = document.getElementById('deviceList');
     if (!devices.length) {
-        list.innerHTML = '<div style="padding:16px;color:#666;font-size:13px">暂无设备，请先通过 API 添加</div>';
+        list.innerHTML = '<div style="padding:16px;color:#666;font-size:13px">暂无设备，点击下方"+ 添加"按钮</div>';
         return;
     }
     list.innerHTML = devices.map(d => `
@@ -174,6 +277,7 @@ function renderDevices(devices) {
             <span class="device-dot"></span>
             <span class="device-name">${escapeHtml(d.name)}</span>
             <span class="device-type">${d.type}</span>
+            <button class="del-btn" onclick="event.stopPropagation();deleteDevice('${d.id}','${escapeHtml(d.name)}')">删除</button>
         </div>
     `).join('');
 }
@@ -278,8 +382,103 @@ function escapeHtml(s) {
     }[c]));
 }
 
+// ---------- 添加设备 ----------
+
+function showAddModal() {
+    document.getElementById('addModal').classList.add('show');
+    document.getElementById('addError').classList.remove('show');
+    // 聚焦第一个输入框
+    setTimeout(() => document.getElementById('f_id').focus(), 50);
+}
+
+function closeAddModal() {
+    document.getElementById('addModal').classList.remove('show');
+    // 清空表单
+    ['f_id','f_name','f_source'].forEach(id => document.getElementById(id).value = '');
+    document.getElementById('f_type').value = 'rtsp';
+    document.getElementById('f_enabled').checked = true;
+}
+
+// 类型切换时更新提示
+document.getElementById('f_type').addEventListener('change', e => {
+    const hint = document.getElementById('source_hint');
+    const placeholder = document.getElementById('f_source');
+    if (e.target.value === 'xiaomi') {
+        placeholder.placeholder = 'xiaomi://账号ID:地区@摄像头IP?did=设备DID&model=型号';
+        hint.textContent = '小米源地址，需要先在 go2rtc WebUI 登录小米账号获取';
+    } else {
+        placeholder.placeholder = 'rtsp://用户名:密码@IP:554/路径';
+        hint.textContent = '标准 RTSP 地址，如 rtsp://admin:pass@192.168.1.100:554/stream';
+    }
+});
+
+async function submitAddDevice() {
+    const addError = document.getElementById('addError');
+    addError.classList.remove('show');
+
+    const id = document.getElementById('f_id').value.trim();
+    const name = document.getElementById('f_name').value.trim();
+    const type = document.getElementById('f_type').value;
+    const source = document.getElementById('f_source').value.trim();
+    const enabled = document.getElementById('f_enabled').checked;
+
+    if (!id || !name || !source) {
+        addError.textContent = '请填写所有必填项';
+        addError.classList.add('show');
+        return;
+    }
+
+    try {
+        const res = await fetch(`${API}/devices`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id, name, type, source, enabled })
+        });
+        if (!res.ok) {
+            const data = await res.json().catch(() => ({}));
+            throw new Error(data.error || 'HTTP ' + res.status);
+        }
+        closeAddModal();
+        await refreshDevices();
+        // 自动选中新添加的设备
+        playDevice(id);
+    } catch (e) {
+        addError.textContent = '添加失败: ' + e.message;
+        addError.classList.add('show');
+    }
+}
+
+// ---------- 删除设备 ----------
+
+async function deleteDevice(id, name) {
+    if (!confirm(`确认删除设备「${name}」？`)) return;
+    try {
+        const res = await fetch(`${API}/devices/${id}`, { method: 'DELETE' });
+        if (!res.ok) {
+            const data = await res.json().catch(() => ({}));
+            throw new Error(data.error || 'HTTP ' + res.status);
+        }
+        // 如果删的是当前播放的设备，停止播放
+        if (currentDevice && currentDevice.id === id) {
+            if (pc) { pc.close(); pc = null; }
+            document.getElementById('video').style.display = 'none';
+            document.getElementById('empty').style.display = 'block';
+            document.getElementById('toolbar').classList.remove('show');
+            currentDevice = null;
+        }
+        await refreshDevices();
+    } catch (e) {
+        alert('删除失败: ' + e.message);
+    }
+}
+
 // 页面加载时自动刷新
 refreshDevices();
+
+// 按 ESC 关闭弹窗
+document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') closeAddModal();
+});
 </script>
 </body>
 </html>
