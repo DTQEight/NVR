@@ -17,7 +17,7 @@ COPY go.mod* ./
 RUN go mod tidy && go mod download
 
 COPY . .
-RUN go build -ldflags="-s -w" -o /out/nvr ./cmd/nvr
+RUN go build -ldflags="-s -w" -o /out/nvr ./cmd/nvr > /tmp/build.log 2>&1 || { echo "===== go build 错误开始 ====="; cat /tmp/build.log; echo "===== go build 错误结束 ====="; exit 1; }
 
 # ---------- 阶段 2：下载 go2rtc 二进制 ----------
 FROM alpine:3.19 AS go2rtc
