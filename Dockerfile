@@ -5,20 +5,19 @@
 # ---------- 阶段 1：编译 ----------
 FROM golang:1.21-alpine AS builder
 
-# 国内代理（NAS 网络可能慢）
-ENV GOPROXY=https://goproxy.cn,direct \
+# GitHub Actions runner 在美国，用官方 proxy 更快；NAS 本地构建可改 goproxy.cn
+ENV GOPROXY=https://proxy.golang.org,direct \
     CGO_ENABLED=0 \
     GOOS=linux
 
 WORKDIR /build
 
-# 复制源码
+# 先复制依赖文件（利用 Docker 层缓存，代码变动不重新下依赖）
+COPY go.mod go.sum ./
+RUN go mod download
+
+# 复制源码并编译
 COPY . .
-
-# 生成 go.sum 并下载依赖
-RUN go mod tidy && go mod download
-
-# 编译
 RUN go build -ldflags="-s -w" -o /out/nvr ./cmd/nvr
 
 # ---------- 阶段 2：运行时 ----------

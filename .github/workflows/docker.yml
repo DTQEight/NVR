@@ -6,7 +6,7 @@
 #   - main 分支推送  -> ghcr.io/dtqeight/nvr:main  (滚动更新)
 #   - 打 tag v1.2.3  -> ghcr.io/dtqeight/nvr:1.2.3 + :latest
 #
-# 多架构：linux/amd64 + linux/arm64（兼容 x86 NAS 和 ARM NAS 如群晖 DS223）
+# 架构：linux/amd64 + linux/arm64（兼容 x86 NAS 和 ARM NAS 如群晖 DS223）
 
 name: Build and Push Docker Image
 
@@ -14,33 +14,48 @@ on:
   push:
     branches: [main]
     tags: ['v*']
-  workflow_dispatch:  # 手动触发
+  workflow_dispatch:
 
 env:
   IMAGE_NAME: ${{ github.repository }}
 
 jobs:
-  build:
+  # 预检：快速暴露编译错误，失败立即终止，不浪费时间到 docker 构建上
+  # 同时生成 go.sum 作为 artifact 供 docker 构建使用
+  precheck:
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write  # 推送到 GHCR 必需
-
     steps:
-      - name: 检出代码
-        uses: actions/checkout@v4
-
-      - name: 设置 Go
-        uses: actions/setup-go@v5
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
         with:
           go-version: '1.21'
-          cache: false
-
-      - name: go mod tidy + go vet（暴露编译错误）
+          cache: true   # 自动缓存 Go 模块，二次构建快很多
+      - name: go mod tidy + go vet + build
         run: |
           go mod tidy
           go vet ./...
           go build ./...
+      - name: 上传 go.sum
+        uses: actions/upload-artifact@v4
+        with:
+          name: gosum
+          path: go.sum
+          retention-days: 1
+
+  build:
+    needs: precheck
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 下载 go.sum（仓库里暂未提交，由 precheck 生成）
+        uses: actions/download-artifact@v4
+        with:
+          name: gosum
 
       - name: 设置 QEMU（多架构构建必需）
         uses: docker/setup-qemu-action@v3
@@ -58,7 +73,6 @@ jobs:
       - name: 提取镜像名（小写）
         id: image
         run: |
-          # GitHub 仓库名可能含大写，Docker 镜像名必须小写
           echo "name=$(echo ${{ env.IMAGE_NAME }} | tr '[:upper:]' '[:lower:]')" >> $GITHUB_OUTPUT
 
       - name: 生成标签
@@ -68,10 +82,10 @@ jobs:
           images: ghcr.io/${{ steps.image.outputs.name }}
           tags: |
             type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/v') }}
-            type=ref,event=branch          # main 分支 -> :main
-            type=semver,pattern={{version}} # v1.2.3 -> :1.2.3
+            type=ref,event=branch
+            type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
-            type=sha,format=short           # 每次提交 -> :sha-xxxxxxx
+            type=sha,format=short
 
       - name: 构建并推送
         uses: docker/build-push-action@v5
