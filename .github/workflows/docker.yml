@@ -30,6 +30,24 @@ jobs:
       - name: 检出代码
         uses: actions/checkout@v4
 
+      - name: Go 语法检查（暴露编译错误）
+        uses: golangci/golangci-lint-action@v4
+        continue-on-error: true
+        with:
+          version: latest
+          args: --timeout=5m
+
+      - name: 单独 go build 验证（错误会直接显示在日志里）
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.21'
+
+      - name: go vet
+        run: |
+          go vet ./... 2>&1 || true
+          echo "---go build---"
+          go build ./... 2>&1 || true
+
       - name: 设置 QEMU（多架构构建必需）
         uses: docker/setup-qemu-action@v3
 
