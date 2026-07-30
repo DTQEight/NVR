@@ -101,8 +101,9 @@ func applyDefaults(v *viper.Viper) {
 	v.SetDefault("server.host", "0.0.0.0")
 	v.SetDefault("server.port", 8080)
 
-	// go2rtc 默认：外部模式，连接本机 go2rtc
-	v.SetDefault("go2rtc.external", true)
+	// go2rtc 默认：集成模式（NVR 自己拉起 go2rtc 子进程）
+	// 如需连接外部已部署的 go2rtc，设置环境变量 NVR_GO2RTC_EXTERNAL=true
+	v.SetDefault("go2rtc.external", false)
 	v.SetDefault("go2rtc.api_base", "http://127.0.0.1:1984")
 	v.SetDefault("go2rtc.rtsp_base", "rtsp://127.0.0.1:8554")
 	v.SetDefault("go2rtc.binary_path", "go2rtc")

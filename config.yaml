@@ -7,9 +7,9 @@ server:
 
 # go2rtc 配置
 go2rtc:
-  # 外部模式（推荐）：连接已部署的 go2rtc，NVR 通过 HTTP API 管理流
-  # 改成 false 则 NVR 自己拉起 go2rtc 子进程（单机部署场景）
-  external: true
+  # 集成模式（默认）：NVR 自己拉起 go2rtc 子进程，单容器部署
+  # 改成 true 则连接已部署的外部 go2rtc（需要单独部署 go2rtc 容器）
+  external: false
   api_base: http://127.0.0.1:1984      # 外部模式：go2rtc HTTP API 地址
   rtsp_base: rtsp://127.0.0.1:8554     # 外部模式：go2rtc RTSP 地址
   # 以下仅 external=false 时生效

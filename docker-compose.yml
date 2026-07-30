@@ -6,6 +6,12 @@ services:
     ports:
       - "18800:8080"        # NVR Web UI（含 go2rtc WebUI 代理）
     environment:
+      # go2rtc 集成模式（NVR 自带 go2rtc 子进程，无需外部部署）
+      NVR_GO2RTC_EXTERNAL: "false"
+      NVR_GO2RTC_BINARY_PATH: "/usr/local/bin/go2rtc"
+      NVR_GO2RTC_CONFIG_PATH: "/app/config/go2rtc.yaml"
+      NVR_GO2RTC_API_PORT: "1984"
+      NVR_GO2RTC_RTSP_PORT: "8554"
       # 录像策略
       NVR_RECORD_SEGMENT_DURATION: "30"
       NVR_RECORD_KEEP_DAYS: "7"
