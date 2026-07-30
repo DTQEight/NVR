@@ -7,6 +7,8 @@
 #   - 打 tag v1.2.3  -> ghcr.io/dtqeight/nvr:1.2.3 + :latest
 #
 # 架构：linux/amd64 + linux/arm64（兼容 x86 NAS 和 ARM NAS 如群晖 DS223）
+#
+# 注意：go.sum 不提交到仓库，由 Dockerfile 内 `go mod tidy` 自动生成
 
 name: Build and Push Docker Image
 
@@ -21,7 +23,6 @@ env:
 
 jobs:
   # 预检：快速暴露编译错误，失败立即终止，不浪费时间到 docker 构建上
-  # 同时生成 go.sum 作为 artifact 供 docker 构建使用
   precheck:
     runs-on: ubuntu-latest
     steps:
@@ -29,18 +30,12 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version: '1.21'
-          cache: true   # 自动缓存 Go 模块，二次构建快很多
-      - name: go mod tidy + go vet + build
+          cache: false  # 仓库无 go.sum，关闭缓存避免警告
+      - name: go mod tidy + go vet + build（打印完整错误）
         run: |
           go mod tidy
           go vet ./...
-          go build ./...
-      - name: 上传 go.sum
-        uses: actions/upload-artifact@v4
-        with:
-          name: gosum
-          path: go.sum
-          retention-days: 1
+          go build ./... 2>&1 || { echo "=== 编译失败，上方为完整错误 ==="; exit 1; }
 
   build:
     needs: precheck
@@ -51,11 +46,6 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
-
-      - name: 下载 go.sum（仓库里暂未提交，由 precheck 生成）
-        uses: actions/download-artifact@v4
-        with:
-          name: gosum
 
       - name: 设置 QEMU（多架构构建必需）
         uses: docker/setup-qemu-action@v3

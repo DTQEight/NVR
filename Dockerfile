@@ -11,8 +11,8 @@ ENV GOPROXY=https://proxy.golang.org,direct \
 
 WORKDIR /build
 
-COPY go.mod go.sum ./
-RUN go mod download
+COPY go.mod* ./
+RUN go mod tidy && go mod download
 
 COPY . .
 RUN go build -ldflags="-s -w" -o /out/nvr ./cmd/nvr
