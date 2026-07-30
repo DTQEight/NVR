@@ -173,6 +173,17 @@
             font-size: 12px;
         }
         .device-item .del-btn:hover { color: #ff6b6b; background: transparent; }
+        .link-btn {
+            display: block;
+            text-align: center;
+            padding: 8px;
+            background: #3a3a3a;
+            color: #ccc;
+            border-radius: 4px;
+            text-decoration: none;
+            font-size: 12px;
+        }
+        .link-btn:hover { background: #444; color: #fff; }
         .error {
             color: #ff6b6b;
             font-size: 12px;
@@ -194,6 +205,9 @@
             <div class="actions">
                 <button onclick="refreshDevices()">刷新</button>
                 <button class="secondary" onclick="showAddModal()">+ 添加</button>
+            </div>
+            <div class="actions" style="border-top:none;padding-top:0">
+                <a href="/go2rtc/" target="_blank" class="link-btn">go2rtc 设置（小米登录）</a>
             </div>
             <div class="error" id="error"></div>
         </aside>

@@ -4,9 +4,7 @@ services:
     container_name: nvr
     restart: unless-stopped
     ports:
-      - "18800:8080"        # NVR Web UI
-      - "1984:1984"          # go2rtc WebUI（可选，调试用）
-      - "8554:8554"          # go2rtc RTSP（可选，外部访问用）
+      - "18800:8080"        # NVR Web UI（含 go2rtc WebUI 代理）
     environment:
       # 录像策略
       NVR_RECORD_SEGMENT_DURATION: "30"
