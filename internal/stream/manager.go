@@ -15,6 +15,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"sync"
 	"time"
 
@@ -39,6 +40,27 @@ type Manager struct {
 	cancel     context.CancelFunc
 	done       chan struct{}
 	restarting bool
+}
+
+// quotedYAMLString forces values that YAML could interpret as syntax (for
+// example ":1984") to be emitted as quoted strings.
+type quotedYAMLString string
+
+var legacyListenAddress = regexp.MustCompile(`(?m)^(\s*listen:\s*):(\d+)(\s*(?:#.*)?)$`)
+
+func (s quotedYAMLString) MarshalYAML() (interface{}, error) {
+	return &yaml.Node{
+		Kind:  yaml.ScalarNode,
+		Tag:   "!!str",
+		Value: string(s),
+		Style: yaml.DoubleQuotedStyle,
+	}, nil
+}
+
+// repairLegacyListenAddresses migrates configs written by older versions,
+// which emitted a leading colon without YAML quotes.
+func repairLegacyListenAddresses(data []byte) []byte {
+	return legacyListenAddress.ReplaceAll(data, []byte(`${1}":${2}"${3}`))
 }
 
 // New 创建管理器
@@ -404,15 +426,18 @@ func (m *Manager) writeConfig() error {
 	// 读取现有配置（如有），保留未知字段
 	existing := make(map[string]interface{})
 	if data, err := os.ReadFile(m.cfg.Go2RTC.ConfigPath); err == nil {
-		_ = yaml.Unmarshal(data, existing) // 解析失败忽略，用空 map
+		data = repairLegacyListenAddresses(data)
+		if err := yaml.Unmarshal(data, existing); err != nil {
+			return fmt.Errorf("解析 go2rtc 配置失败: %w", err)
+		}
 	}
 
 	// 更新 NVR 管理的段
 	existing["api"] = map[string]interface{}{
-		"listen": fmt.Sprintf(":%d", m.cfg.Go2RTC.APIPort),
+		"listen": quotedYAMLString(fmt.Sprintf(":%d", m.cfg.Go2RTC.APIPort)),
 	}
 	existing["rtsp"] = map[string]interface{}{
-		"listen": fmt.Sprintf(":%d", m.cfg.Go2RTC.RTSPPort),
+		"listen": quotedYAMLString(fmt.Sprintf(":%d", m.cfg.Go2RTC.RTSPPort)),
 	}
 	existing["streams"] = streams
 
